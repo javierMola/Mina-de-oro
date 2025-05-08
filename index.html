@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Mina de Oro</title>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      font-family: 'Press Start 2P', cursive;
+      background: linear-gradient(#1c1c1c, #2a2a2a);
+      color: #f8f8f8;
+      margin: 0;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    h1 {
+      color: gold;
+      text-shadow: 2px 2px 4px black;
+      font-size: 20px;
+      text-align: center;
+    }
+
+    #info {
+      font-size: 10px;
+      margin: 10px;
+      text-align: center;
+    }
+
+    #mina {
+      display: grid;
+      grid-template-columns: repeat(5, 60px);
+      gap: 5px;
+      justify-content: center;
+      margin: 10px auto;
+    }
+
+    .celda {
+      width: 60px;
+      height: 60px;
+      background: #8B5A2B;
+      border-radius: 6px;
+      box-shadow: inset 0 0 5px #000;
+      transition: transform 0.1s;
+    }
+
+    .oro {
+      background: radial-gradient(circle, gold 40%, #b8860b);
+      box-shadow: 0 0 10px gold;
+    }
+
+    .vacio {
+      background: #444;
+    }
+
+    .trampa {
+      background: crimson;
+      box-shadow: 0 0 10px red;
+    }
+
+    .seleccionada {
+      border: 3px solid cyan;
+    }
+
+    #controles, #tienda {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      justify-content: center;
+      margin: 10px;
+    }
+
+    button {
+      font-family: 'Press Start 2P', cursive;
+      font-size: 8px;
+      background: #222;
+      color: white;
+      border: 2px solid gold;
+      border-radius: 5px;
+      padding: 6px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: gold;
+      color: #222;
+    }
+
+    #mensaje {
+      font-size: 10px;
+      margin-top: 10px;
+      text-align: center;
+    }
+
+    @media (orientation: landscape) {
+      body {
+        flex-direction: row;
+        justify-content: center;
+        align-items: flex-start;
+      }
+      #mina {
+        margin-right: 20px;
+      }
+      #controles, #tienda {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>Mina de Oro</h1>
+  <div>
+    <div id="info">
+      Nivel: <span id="nivel">1</span> | Oro: <span id="oro">0</span> | Energía: <span id="energia">10</span> | Meta: <span id="meta">3</span>
+    </div>
+    <div id="mina"></div>
+    <div id="mensaje"></div>
+    <div id="controles">
+      <button onclick="seleccionarSiguiente()">Siguiente</button>
+      <button onclick="excavarSeleccionada()">Excavar</button>
+      <button onclick="reiniciarNivel()">Reiniciar</button>
+      <button onclick="toggleMusica()">Música</button>
+    </div>
+    <div id="tienda">
+      <button onclick="comprarEnergia()">+5 Energía (3 oro)</button>
+      <button onclick="usarDetector()">Detector (5 oro)</button>
+    </div>
+  </div>
+
+  <audio id="snd-oro" src="sonidos/oro.mp3"></audio>
+  <audio id="snd-trampa" src="sonidos/trampa.mp3"></audio>
+  <audio id="snd-vacio" src="sonidos/vacio.mp3"></audio>
+  <audio id="musica" src="sonidos/musica.mp3" loop></audio>
+
+  <script>
+    const mina = document.getElementById("mina");
+    const oroCont = document.getElementById("oro");
+    const energiaCont = document.getElementById("energia");
+    const nivelCont = document.getElementById("nivel");
+    const metaCont = document.getElementById("meta");
+    const mensaje = document.getElementById("mensaje");
+
+    const sndOro = document.getElementById("snd-oro");
+    const sndTrampa = document.getElementById("snd-trampa");
+    const sndVacio = document.getElementById("snd-vacio");
+    const musica = document.getElementById("musica");
+
+    let nivel = 1, oro = 0, energia = 10, meta = 3;
+    let seleccion = 0;
+    let celdas = [];
+
+    function generarMina() {
+      mina.innerHTML = "";
+      celdas = [];
+      for (let i = 0; i < 25; i++) {
+        const celda = document.createElement("div");
+        celda.classList.add("celda");
+        let tipo = Math.random() < 0.25 ? "oro" : (Math.random() < 0.1 ? "trampa" : "vacio");
+        celda.dataset.tipo = tipo;
+        celda.onclick = () => excavar(celda);
+        mina.appendChild(celda);
+        celdas.push(celda);
+      }
+      seleccion = 0;
+      actualizarSeleccion();
+    }
+
+    function actualizarSeleccion() {
+      celdas.forEach(c => c.classList.remove("seleccionada"));
+      if (celdas[seleccion] && !celdas[seleccion].dataset.excavado) {
+        celdas[seleccion].classList.add("seleccionada");
+      }
+    }
+
+    function seleccionarSiguiente() {
+      do {
+        seleccion = (seleccion + 1) % celdas.length;
+      } while (celdas[seleccion].dataset.excavado);
+      actualizarSeleccion();
+    }
+
+    function excavarSeleccionada() {
+      if (celdas[seleccion]) excavar(celdas[seleccion]);
+    }
+
+    function excavar(celda) {
+      if (energia <= 0 || celda.dataset.excavado) return;
+      celda.dataset.excavado = true;
+      const tipo = celda.dataset.tipo;
+      if (tipo === "oro") {
+        oro++; energia--; celda.classList.add("oro"); sndOro.play();
+      } else if (tipo === "trampa") {
+        energia -= 3; celda.classList.add("trampa"); sndTrampa.play();
+      } else {
+        energia--; celda.classList.add("vacio"); sndVacio.play();
+      }
+      energia = Math.max(0, energia);
+      actualizarUI();
+      if (oro >= meta) {
+        mensaje.textContent = "¡Nivel superado!";
+        setTimeout(subirNivel, 1500);
+      } else if (energia <= 0) {
+        mensaje.textContent = "¡Sin energía!";
+      }
+    }
+
+    function actualizarUI() {
+      oroCont.textContent = oro;
+      energiaCont.textContent = energia;
+      nivelCont.textContent = nivel;
+      metaCont.textContent = meta;
+    }
+
+    function subirNivel() {
+      nivel++; oro = 0; energia = 10 + nivel * 2; meta = 3 + nivel;
+      actualizarUI(); generarMina();
+    }
+
+    function reiniciarNivel() {
+      oro = 0; energia = 10 + nivel * 2;
+      actualizarUI(); generarMina(); mensaje.textContent = "";
+    }
+
+    function comprarEnergia() {
+      if (oro >= 3) { energia += 5; oro -= 3; actualizarUI(); mensaje.textContent = "+5 energía."; }
+      else mensaje.textContent = "Oro insuficiente.";
+    }
+
+    function usarDetector() {
+      if (oro < 5) { mensaje.textContent = "Oro insuficiente."; return; }
+      oro -= 5; actualizarUI();
+      let marcadas = 0;
+      for (let celda of celdas) {
+        if (!celda.dataset.excavado && celda.dataset.tipo === "oro" && marcadas < 1) {
+          celda.style.outline = "2px dashed yellow";
+          marcadas++;
+        }
+      }
+    }
+
+    function toggleMusica() {
+      if (musica.paused) musica.play();
+      else musica.pause();
+    }
+
+    generarMina();
+  </script>
+</body>
+</html>
